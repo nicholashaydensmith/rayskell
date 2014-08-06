@@ -18,7 +18,7 @@ data Obj = Geometry Id [Vertex] [Face]
 main :: IO ()
 main = getArgs >>= mapM readFile >>= render img . geometry
       where
-            img      = Image 500 500 (V.replicate (500 * 500) (PixelRGBA8 0 0 0 0) :: ImgData) --(V.fromList [] :: ImgData)
+            img      = Image 500 500 (V.replicate (500 * 500 * 4) 255 :: ImgData)
             geometry = map (\f -> parseObj (Geometry "" [] []) (lines f))
 
 render :: FrameBuffer -> [Obj] -> IO ()
