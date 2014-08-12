@@ -1,40 +1,70 @@
 import Data.List
+import Data.Bits ( (.&.) )
+import Data.IORef ( IORef, newIORef )
+import Foreign ( newArray )
 import System.Environment
 import Debug.Trace
-import qualified Data.Vector.Storable as V
-import Codec.Picture
+import Graphics.UI.GLUT
 
 t3 :: [a] -> (a, a, a)
 t3 [a, b, c] = (a, b, c)
 
-type Vertex = (Float, Float, Float)
-type Face = (Vertex, Vertex, Vertex)
+type OBJVertex = (GLfloat, GLfloat, GLfloat)
+type OBJFace = (OBJVertex, OBJVertex, OBJVertex)
 type Id = String
-type FrameBuffer = Image PixelRGBA8
-type ImgData = V.Vector (PixelBaseComponent PixelRGBA8)
-data Obj = Geometry Id [Vertex] [Face]
+type FrameBuffer = PixelData (Color3 GLubyte)
+data Obj = Geometry Id [OBJVertex] [OBJFace]
       deriving (Show)
 
 main :: IO ()
-main = getArgs >>= mapM readFile >>= render img . geometry
-      where
-            img      = Image 500 500 (V.replicate (500 * 500 * 4) 0 :: ImgData)
-            geometry = map (\f -> parseObj (Geometry "" [] []) (lines f))
+main = do
+      (_progName, _args) <- getArgsAndInitialize
+      _window <- createWindow "Rayskell"
+      img <- myInit
+      displayCallback $= display img
+      mainLoop
+
+display :: FrameBuffer -> DisplayCallback
+display fb = do
+      clear [ ColorBuffer ]
+      drawPixels checkImageSize fb
+      flush
+
+checkImageSize :: Size
+checkImageSize = Size 64 64
+
+makeCheckImage :: Size -> GLsizei -> (GLubyte -> (Color3 GLubyte)) -> IO FrameBuffer
+makeCheckImage (Size w h) n f =
+                              fmap (PixelData RGB UnsignedByte) $
+                                    newArray [ f c |
+                                          i <- [ 0 .. w - 1 ],
+                                          j <- [ 0 .. h - 1 ],
+                                          let c | (i .&. n) == (j .&. n) = 0
+                                                | otherwise              = 255 ]
+
+myInit :: IO FrameBuffer
+myInit = do
+      clearColor $= Color4 0 0 0 0
+      rowAlignment Unpack $= 1
+      makeCheckImage checkImageSize 0x8 (\c -> Color3 c c c)
 
 render :: FrameBuffer -> [Obj] -> IO ()
-render fb []                                   = writePng "./renders/test.png" fb
-render fb@(Image w h v) ((Geometry _ _ fs):gs) = render (Image w h (renderGeometry v fs)) gs
+render fb []                     = putStr $ show fb
+render fb ((Geometry _ _ fs):gs) = render fb gs
 
-renderGeometry :: ImgData -> [Face] -> ImgData
-renderGeometry v fs = (v ! 10)
+--renderGeometry :: ImgData -> [OBJFace] -> ImgData
+--renderGeometry v fs = map (\(PixelRGBA8 r g b a) -> PixelRGBA8 255 g b 255) v
+
+--renderPixel :: PixelBaseComponent PixelRGBA8 -> PixelBaseComponent PixelRGBA8
+--renderPixel a = a + 10
 
 parseObj :: Obj -> [String] -> Obj
 parseObj g []                         = g
 parseObj g@(Geometry i vs fs) ("":ss) = parseObj g ss
 parseObj g@(Geometry i vs fs) (s:ss)  = case t of 
                                           "g" -> parseObj (Geometry (head vals) vs fs) ss
-                                          "v" -> parseObj (Geometry i (vs ++ [(t3 (map read vals::[Float]))]) fs) ss
-                                          "f" -> parseObj (Geometry i vs (fs ++ [(t3 (map (vs !!) (map (\i -> (read i::Int) - 1) vals)::[Vertex]))])) ss
+                                          "v" -> parseObj (Geometry i (vs ++ [(t3 (map read vals::[GLfloat]))]) fs) ss
+                                          "f" -> parseObj (Geometry i vs (fs ++ [(t3 (map (vs !!) (map (\i -> (read i::Int) - 1) vals)::[OBJVertex]))])) ss
                                           _   -> parseObj g ss
                                           where line = words s
                                                 t    = head line
