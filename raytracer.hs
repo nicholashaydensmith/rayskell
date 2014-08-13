@@ -7,6 +7,9 @@ import Graphics.UI.GLUT
 t3 :: [a] -> (a, a, a)
 t3 [a, b, c] = (a, b, c)
 
+deg2rad :: GLfloat -> GLfloat
+deg2rad deg = deg * (pi / 180.0)
+
 type OBJVertex = (GLfloat, GLfloat, GLfloat)
 type OBJFace = (OBJVertex, OBJVertex, OBJVertex)
 type Id = String
@@ -34,15 +37,21 @@ main = do
 display :: FrameBuffer -> DisplayCallback
 display fb = clear [ ColorBuffer ] >>= \_-> drawPixels (Size 64 64) fb >>= \_-> flush
 
+        --"   float tanTheta    = tan(radians(fieldOfView) / 2.0);\n"
+        --"   float aspectRatio = rl_FrameSize.y   / rl_FrameSize.x;\n"
+		--"   //vec2  frameCoord  = .30 * ((rl_FrameCoord.xy - vec2(12, 12)) / rl_FrameSize.xy - 0.5);\n"
+        --"   vec2  frameCoord  = rl_FrameCoord.xy / rl_FrameSize.xy - 0.5;\n"
+        --"   createRay();\n"
+        --"   rl_OutRay.origin           = cameraPosition;\n"
+        --"   rl_OutRay.direction        = normalize(vec3(frameCoord.x, frameCoord.y * aspectRatio, -1.0 / (2.0 * tanTheta)));\n"
 render :: [Color4 GLubyte] -> [Obj] -> IO FrameBuffer
-render fb gs = fmap (PixelData RGBA UnsignedByte) (newArray (map (\(p, i) -> renderPixel (Ray p (Vec3 32.0 32.0 dis) (v (i `mod` 64 :: Int) (i `quot` 64 :: Int))) fs) (zip fb [0..])))
-                  where fs = concatMap (\(Geometry _ _ fs) -> fs) gs
-                        theta = 45
-                        dis   = 2.0
-                        alpha = \i -> ((2 * ((fromIntegral i) + 0.5)) / 64.0) - 1.0
-                        beta  = \i -> 1.0 - ((2 * ((fromIntegral i) + 0.5)) / 64.0)
-                        u0    = dis * tan (theta)
-                        v     = \i j -> (Vec3 (u0 * alpha i) (u0 * alpha i) (u0 * alpha i)) + (Vec3 (u0 * beta j) (u0 * beta j) (u0 * beta j))
+render fb gs = fmap (PixelData RGBA UnsignedByte) (newArray (map (\(p, i) -> renderPixel (Ray p (Vec3 32.0 32.0 dis) (dir (fromIntegral (i `mod` 64 :: Int) :: GLfloat) (fromIntegral (i `quot` 64 :: Int) :: GLfloat))) fs) (zip fb [0..])))
+--render fb gs = fmap (PixelData RGBA UnsignedByte) (newArray (map (\(p, i) -> renderPixel (Ray p (Vec3 (fromIntegral (i `mod` 64 :: Int) :: GLfloat) (fromIntegral (i `quot` 64 :: Int) :: GLfloat) dis) (Vec3 0.0 0.0 (1.0))) fs) (zip fb [0..])))
+                          where fs = concatMap (\(Geometry _ _ fs) -> fs) gs
+                                dis   = 15.0
+                                tanT  = tan (deg2rad 60.0) / 2.0
+                                ar    = 64.0 / 64.0
+                                dir   = \i j -> vec3Normalize (Vec3 ((i / 64.0) - 0.5) ((j / 64.0) - 0.5) (-1.0 / (2.0 * tanT)))
 
 renderPixel :: Ray -> [OBJFace] -> Color4 GLubyte
 renderPixel r@(Ray c _ _) fs = foldl (\c0 c1 -> c0 + c1) c $ map (\f -> accumulate r f) fs
@@ -95,6 +104,13 @@ cross (Vec3 x y z) (Vec3 u v w) = (Vec3 (y * w) (z * u) (x * v)) - (Vec3 (z * v)
 
 dot :: Vector GLfloat -> Vector GLfloat -> GLfloat
 dot (Vec3 x y z) (Vec3 u v w) = (x * u) + (y * v) + (z * w)
+
+vec3Normalize :: Vector GLfloat -> Vector GLfloat
+vec3Normalize (Vec3 x y z) = Vec3 u v w
+                            where a = sqrt ((x * x) + (y * y) + (z * z))
+                                  u = x / a
+                                  v = y / a
+                                  w = z / a
 
 instance (Num a) => Num (Color4 a) where
       (Color4 a b c d) + (Color4 e f g h) = Color4 (a + e) (b + f) (c + g) (d + h)
