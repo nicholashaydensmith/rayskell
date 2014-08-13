@@ -35,8 +35,14 @@ display :: FrameBuffer -> DisplayCallback
 display fb = clear [ ColorBuffer ] >>= \_-> drawPixels (Size 64 64) fb >>= \_-> flush
 
 render :: [Color4 GLubyte] -> [Obj] -> IO FrameBuffer
-render fb gs = fmap (PixelData RGBA UnsignedByte) (newArray (map (\(p, i) -> renderPixel (Ray p (Vec3 (fromIntegral (i `mod` 64 :: Int) :: GLfloat) (fromIntegral (i `quot` 64 :: Int) :: GLfloat) (-1.0)) (Vec3 0.0 0.0 1.0)) fs) (zip fb [0..])))
+render fb gs = fmap (PixelData RGBA UnsignedByte) (newArray (map (\(p, i) -> renderPixel (Ray p (Vec3 32.0 32.0 dis) (v (i `mod` 64 :: Int) (i `quot` 64 :: Int))) fs) (zip fb [0..])))
                   where fs = concatMap (\(Geometry _ _ fs) -> fs) gs
+                        theta = 45
+                        dis   = 2.0
+                        alpha = \i -> ((2 * ((fromIntegral i) + 0.5)) / 64.0) - 1.0
+                        beta  = \i -> 1.0 - ((2 * ((fromIntegral i) + 0.5)) / 64.0)
+                        u0    = dis * tan (theta)
+                        v     = \i j -> (Vec3 (u0 * alpha i) (u0 * alpha i) (u0 * alpha i)) + (Vec3 (u0 * beta j) (u0 * beta j) (u0 * beta j))
 
 renderPixel :: Ray -> [OBJFace] -> Color4 GLubyte
 renderPixel r@(Ray c _ _) fs = foldl (\c0 c1 -> c0 + c1) c $ map (\f -> accumulate r f) fs
