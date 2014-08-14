@@ -30,6 +30,7 @@ main = do
       --clearColor $= Color4 0 0 0 0
       --rowAlignment Unpack $= 1
       objs <- mapM readFile _args
+      putStrLn $ show (map (\f -> parseObj (Geometry "" [] []) (lines f)) objs)
       fb <- render (replicate (64 * 64) (Color4 0 0 255 255)) (map (\f -> parseObj (Geometry "" [] []) (lines f)) objs)
       displayCallback $= display fb
       mainLoop
@@ -46,12 +47,12 @@ display fb = clear [ ColorBuffer ] >>= \_-> drawPixels (Size 64 64) fb >>= \_-> 
         --"   rl_OutRay.direction        = normalize(vec3(frameCoord.x, frameCoord.y * aspectRatio, -1.0 / (2.0 * tanTheta)));\n"
 render :: [Color4 GLubyte] -> [Obj] -> IO FrameBuffer
 render fb gs = fmap (PixelData RGBA UnsignedByte) (newArray (map (\(p, i) -> renderPixel (Ray p (Vec3 32.0 32.0 dis) (dir (fromIntegral (i `mod` 64 :: Int) :: GLfloat) (fromIntegral (i `quot` 64 :: Int) :: GLfloat))) fs) (zip fb [0..])))
---render fb gs = fmap (PixelData RGBA UnsignedByte) (newArray (map (\(p, i) -> renderPixel (Ray p (Vec3 (fromIntegral (i `mod` 64 :: Int) :: GLfloat) (fromIntegral (i `quot` 64 :: Int) :: GLfloat) dis) (Vec3 0.0 0.0 (1.0))) fs) (zip fb [0..])))
+--render fb gs = fmap (PixelData RGBA UnsignedByte) (newArray (map (\(p, i) -> renderPixel (Ray p (Vec3 (fromIntegral (i `mod` 64 :: Int) :: GLfloat) (fromIntegral (i `quot` 64 :: Int) :: GLfloat) dis) (vec3Normalize (Vec3 0.0 0.0 (1.0)))) fs) (zip fb [0..])))
                           where fs = concatMap (\(Geometry _ _ fs) -> fs) gs
-                                dis   = 15.0
+                                dis   = 1.0
                                 tanT  = tan (deg2rad 60.0) / 2.0
                                 ar    = 64.0 / 64.0
-                                dir   = \i j -> vec3Normalize (Vec3 ((i / 64.0) - 0.5) ((j / 64.0) - 0.5) (-1.0 / (2.0 * tanT)))
+                                dir   = \i j -> vec3Normalize (Vec3 ((i / 64.0) - 0.5) ((j / 64.0) - 0.5) (1.0 / tanT))
 
 renderPixel :: Ray -> [OBJFace] -> Color4 GLubyte
 renderPixel r@(Ray c _ _) fs = foldl (\c0 c1 -> c0 + c1) c $ map (\f -> accumulate r f) fs
@@ -99,8 +100,14 @@ parseObj g@(Geometry i vs fs) (s:ss)  = case t of
                                                 t    = head line
                                                 vals = tail line
 
+
+
+
 cross :: Vector GLfloat -> Vector GLfloat -> Vector GLfloat
-cross (Vec3 x y z) (Vec3 u v w) = (Vec3 (y * w) (z * u) (x * v)) - (Vec3 (z * v) (x * w) (y * u))
+cross (Vec3 ax ay az) (Vec3 bx by bz) = Vec3 cx cy cz
+                                          where cx = ay * bz - az * by
+                                                cy = az * bx - ax * bz
+                                                cz = ax * by - ay * bx
 
 dot :: Vector GLfloat -> Vector GLfloat -> GLfloat
 dot (Vec3 x y z) (Vec3 u v w) = (x * u) + (y * v) + (z * w)
